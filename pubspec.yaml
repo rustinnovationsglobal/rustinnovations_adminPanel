@@ -1,0 +1,35 @@
+name: rustinnovations_adminpanel
+description: "RustInnovations Admin panel used for managing for rustinnovations website"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  go_router:
+  google_fonts:
+  supabase_flutter: ^2.12.4
+  svg_flutter:
+  image_picker:
+  html_editor_enhanced: ^2.5.1
+  vsc_quill_delta_to_html: ^1.0.5
+  flutter_widget_from_html:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - lib/assets/images/
