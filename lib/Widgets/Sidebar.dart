@@ -122,11 +122,12 @@ class Sidebar extends StatelessWidget {
               size: 22,
             ),
             const SizedBox(width: 16),
-            paragraph(
-              text: title,
-              fontsize: 15,
-              textAlign: TextAlign.start,
-            ),
+            Text(
+              title,
+              style: TextStyle(
+              fontSize: 15,
+              color: Colors.white
+            ),textAlign: TextAlign.start,),
           ],
         ),
       ),

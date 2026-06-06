@@ -104,7 +104,7 @@ class _BlogDetailsPageState extends State<BlogDetailsPage> {
           Expanded(
             child: Column(
               children: [
-                Topbar(onProfileTap: () {}, title: "View Article"),
+                Topbar( title: "View Article"),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.all(isMobile ? 16 : 32),

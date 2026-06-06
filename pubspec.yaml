@@ -20,6 +20,7 @@ dependencies:
   html_editor_enhanced: ^2.5.1
   vsc_quill_delta_to_html: ^1.0.5
   flutter_widget_from_html:
+  http:
 
 dev_dependencies:
   flutter_test:

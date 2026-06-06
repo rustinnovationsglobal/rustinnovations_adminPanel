@@ -13,6 +13,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../assets/Core/RandomId.dart';
 import '../assets/Core/SupabaseCRUD/CRUD.dart';
+import 'dart:html' as html;
+
+import '../assets/Core/downloadQR.dart';
+
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -23,6 +27,7 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   bool _isAdding = false;
+  final String BASE_URL = "https://rustpass.rustinnovations.com/employee.html?id=";
 
   /// Non-null when the user tapped Edit on a card — passes existing data into
   /// the form so it opens in edit mode instead of register mode.
@@ -87,7 +92,6 @@ class _DashboardState extends State<Dashboard> {
             child: Column(
               children: [
                 Topbar(
-                  onProfileTap: () {},
                   title: "Employee Record",
                 ),
                 Expanded(
@@ -163,17 +167,19 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _buildEmployeeCard(bool isMobile, Map<String, dynamic> employee) {
-    final String avatarUrl = employee['avatar_url'] ??
+    final String avatarUrl   = employee['avatar_url'] ??
         'https://i.pravatar.cc/150?u=${employee['id']}';
-    final String id = employee['id'] ?? 'N/A';
-    final String name = employee['name'] ?? 'N/A';
-    final String fName = employee['f-name'] ?? 'N/A';
-    final String role = employee['role'] ?? 'N/A';
+    final String id          = employee['id'] ?? 'N/A';
+    final String name        = employee['name'] ?? 'N/A';
+    final String fName       = employee['f-name'] ?? 'N/A';
+    final String role        = employee['role'] ?? 'N/A';
+    final String location    = employee['location'] ?? 'N/A';
     final String joiningDate = employee['joining-date'] ?? 'N/A';
-    final bool isActive = employee['status'] ?? true;
-    final String cnic = employee['CNIC']?.toString() ?? 'N/A';
-    final String salary = employee['salary']?.toString() ?? 'N/A';
-    final String allowances = employee['allowances']?.toString() ?? 'None';
+    final bool   isActive    = employee['status'] ?? true;
+    final String cnic        = employee['CNIC']?.toString() ?? 'N/A';
+    final String salary      = employee['salary']?.toString() ?? 'N/A';
+    final String allowances  = employee['allowances']?.toString() ?? 'None';
+    final String email       = employee['email']?.toString() ?? 'N/A';
 
     return Container(
       width: double.infinity,
@@ -188,64 +194,133 @@ class _DashboardState extends State<Dashboard> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
+              // ── Header: Avatar | Name+Role | Verified+ID ─────────────
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // Left: avatar
                   CircleAvatar(
-                    radius: 60,
+                    radius: isMobile ? 38 : 50,
                     backgroundImage: NetworkImage(avatarUrl),
                     backgroundColor: const Color(0xFF2C2F3A),
                   ),
-                  const SizedBox(width: 24),
+                  const SizedBox(width: 20),
+                  // Centre: name + role
                   Expanded(
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _buildDetailItem("Employee ID", "#$id",
-                                    hasCopy: true)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildDetailItem("Name", name)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildDetailItem("Father Name", fName)),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(child: _buildDetailItem("Role", role)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildDetailItem(
-                                    "Joining Date", joiningDate)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: _buildDetailItem(
-                                    "Status", isActive ? "Active" : "Inactive",
-                                    valueColor: isActive
-                                        ? Colors.green
-                                        : Colors.redAccent)),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(child: _buildDetailItem("CNIC", cnic)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildDetailItem("Salary", salary)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child:
-                                _buildDetailItem("Allowances", allowances)),
-                          ],
+                        headline(text: name, fontsize: isMobile ? 16 : 20),
+                        const SizedBox(height: 4),
+                        paragraph(
+                          text: role,
+                          fontsize: 13,
+                          color: const Color(0xFFD02657),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 16),
+                  // Right: verified badge + ID + copy
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Verified badge
+
+                      SizedBox(height: 50,),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD02657).withOpacity(0.12),
+                          border: Border.all(
+                              color: const Color(0xFFD02657).withOpacity(0.35)),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                  color: Color(0xFF4ADE80),
+                                  shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 6),
+                            paragraph(
+                              text: 'VERIFIED EMPLOYEE',
+                              fontsize: 10,
+                              color: const Color(0xFFFF8AB0),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Employee ID + copy button
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          headline(
+                            text: id,
+                            fontsize: isMobile ? 15 : 18,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Clickable(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: id));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Employee ID copied')),
+                              );
+                            },
+                              child: Icon(Icons.copy, color: Colors.white, size: 13,)
+                          )],
+                      ),
+                    ],
+                  ),
                 ],
               ),
+
+              const SizedBox(height: 24),
+              const Divider(color: Colors.white10, height: 1),
+              const SizedBox(height: 20),
+
+              // ── 3×3 info grid ─────────────────────────────────────────
+              LayoutBuilder(builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final colW = (w - 32) / 3;
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('Father Name', fName)),
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('Email', email)),
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('Location', location)),
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('Joining Date', joiningDate)),
+                    SizedBox(
+                      width: isMobile ? w : colW,
+                      child: _buildDetailItem(
+                        'Status',
+                        isActive ? 'Active' : 'Inactive',
+                        valueColor: isActive ? Colors.green : Colors.redAccent,
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('CNIC', cnic)),
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('Salary', salary)),
+                    SizedBox(width: isMobile ? w : colW,
+                        child: _buildDetailItem('Allowances', allowances)),
+                  ],
+                );
+              }),
               const SizedBox(height: 32),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -256,7 +331,7 @@ class _DashboardState extends State<Dashboard> {
                 child: Row(
                   children: [
                     Image.network(
-                      'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=$id',
+                      'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${BASE_URL}$id',
                       width: 120,
                       height: 120,
                     ),
@@ -276,7 +351,9 @@ class _DashboardState extends State<Dashboard> {
                               color: Colors.black54),
                           const SizedBox(height: 12),
                           _buildPrimaryButton(
-                              text: "Download QR Code", onPressed: () {}),
+                              text: "Download QR Code", onPressed: () {
+                            downloadQr(qrUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${BASE_URL}$id', id: id);
+                          }),
                         ],
                       ),
                     ),
@@ -323,7 +400,7 @@ class _DashboardState extends State<Dashboard> {
             if (hasCopy) ...[
               Clickable(
                 onTap: () {
-                  Clipboard.setData(ClipboardData(text: value));
+                  Clipboard.setData(ClipboardData(text: value.trim()));
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Copied to clipboard")),
                   );
@@ -354,7 +431,7 @@ class _DashboardState extends State<Dashboard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1C23),
+          color: MyColors.BUTTON_COLOR,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -362,7 +439,7 @@ class _DashboardState extends State<Dashboard> {
           children: [
             const Icon(Icons.add, size: 18, color: Colors.white),
             const SizedBox(width: 8),
-            paragraph(text: text, fontsize: 14, color: Colors.white),
+            Text(text, style: TextStyle(fontSize: 14, color: Colors.white)),
           ],
         ),
       ),
@@ -379,10 +456,11 @@ class _DashboardState extends State<Dashboard> {
           color: MyColors.BUTTON_COLOR,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: headline(text: text, fontsize: 14),
+        child: Text(text, style: TextStyle(fontSize: 14, color: Colors.white)),
       ),
     );
   }
+
 }
 
 // =============================================================
@@ -411,16 +489,17 @@ class _AddEmployeeForm extends StatefulWidget {
 
 class _AddEmployeeFormState extends State<_AddEmployeeForm> {
   // ---- Controllers ----
-  final _nameCtrl = TextEditingController();
-  final _fNameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _roleCtrl = TextEditingController();
-  final _cnicCtrl = TextEditingController();
-  final _salaryCtrl = TextEditingController();
+  final _nameCtrl       = TextEditingController();
+  final _fNameCtrl      = TextEditingController();
+  final _emailCtrl      = TextEditingController();
+  final _roleCtrl       = TextEditingController();
+  final _cnicCtrl       = TextEditingController();
+  final _salaryCtrl     = TextEditingController();
   final _allowancesCtrl = TextEditingController();
 
   // ---- State ----
   bool _statusActive = true;
+  String _locationValue = 'Remote'; // Remote | On-site | Hybrid
   DateTime _joiningDate = DateTime.now();
   Uint8List? _imageBytes;
   String? _imageFileName;
@@ -448,33 +527,56 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
       _generatedId = d['id'] ?? '';
       _existingAvatarUrl = d['avatar_url'] as String?;
 
-      _nameCtrl.text = d['name'] ?? '';
-      _fNameCtrl.text = d['f-name'] ?? '';
-      _emailCtrl.text = d['email'] ?? '';
-      _roleCtrl.text = d['role'] ?? '';
-      _cnicCtrl.text = d['CNIC']?.toString() ?? '';
+      _nameCtrl.text     = d['name'] ?? '';
+      _fNameCtrl.text    = d['f-name'] ?? '';
+      _emailCtrl.text    = d['email'] ?? '';
+      _roleCtrl.text     = d['role'] ?? '';
+      _cnicCtrl.text     = d['CNIC']?.toString() ?? '';
       _salaryCtrl.text = d['salary']?.toString() ?? '';
       _allowancesCtrl.text = d['allowances']?.toString() ?? '';
       _statusActive = d['status'] ?? true;
+      _locationValue = d['location'] ?? 'Remote';
 
       final rawDate = d['joining-date'] as String?;
       if (rawDate != null) {
         _joiningDate = DateTime.tryParse(rawDate) ?? DateTime.now();
       }
     } else {
-      // ---- Register mode: generate a fresh ID ----
-      _generatedId = Randomid().generateId("N", "E");
+      // ---- Register mode: generate a fresh sequential RP-XXXX ID ----
+      _generatedId = 'RP-0001'; // placeholder until async fetch completes
+      _fetchNextId();
     }
+  }
 
-    // Listen for name changes so we can update the initials part of the ID.
-    _nameCtrl.addListener(_refreshId);
-    _fNameCtrl.addListener(_refreshId);
+  /// Fetches all existing employee IDs from Supabase and derives the next
+  /// sequential RP-XXXX id.
+  Future<void> _fetchNextId() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('Employee')
+          .select('id')
+          .like('id', 'RP-%');
+
+      final List rows = response as List;
+      int maxNum = 0;
+      for (final row in rows) {
+        final rawId = row['id'] as String? ?? '';
+        if (rawId.startsWith('RP-')) {
+          final numPart = int.tryParse(rawId.substring(3)) ?? 0;
+          if (numPart > maxNum) maxNum = numPart;
+        }
+      }
+      final nextNum = maxNum + 1;
+      final nextId = 'RP-${nextNum.toString().padLeft(4, '0')}';
+      if (mounted) setState(() => _generatedId = nextId);
+    } catch (_) {
+      // Keep the placeholder if fetch fails
+    }
   }
 
   @override
   void dispose() {
-    _nameCtrl.removeListener(_refreshId);
-    _fNameCtrl.removeListener(_refreshId);
     _nameCtrl.dispose();
     _fNameCtrl.dispose();
     _emailCtrl.dispose();
@@ -489,26 +591,8 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
   //  ID helpers
   // ------------------------------------------------------------------
 
-  /// Updates only the initials before the `-` separator.
-  /// The numeric suffix (last 6 digits) is NEVER changed.
-  void _refreshId() {
-    final first =
-    _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : "N";
-    final last =
-    _fNameCtrl.text.trim().isNotEmpty ? _fNameCtrl.text.trim() : "E";
-
-    // Keep the existing suffix stable — works for both register and edit mode.
-    final existingSuffix = _generatedId.contains('-')
-        ? _generatedId.split('-').last
-        : _generatedId;
-
-    final i1 = first[0].toUpperCase();
-    final i2 = last[0].toUpperCase();
-
-    setState(() {
-      _generatedId = "$i1$i2-$existingSuffix";
-    });
-  }
+  // _refreshId removed — ID is now a fixed sequential RP-XXXX number assigned
+  // automatically and never changed after creation.
 
   // ------------------------------------------------------------------
   //  Storage helpers
@@ -655,11 +739,12 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
         //  Do NOT include 'id' or 'created_at' — they must not change.
         // ----------------------------------------------------------------
         final Map<String, dynamic> record = {
-          'id': _generatedId, // updated initials, same suffix
-          'name': _nameCtrl.text.trim(),
-          'f-name': _fNameCtrl.text.trim(),
-          'email': _emailCtrl.text.trim(),
-          'role': _roleCtrl.text.trim(),
+          // 'id' intentionally omitted — the ID must never change after creation.
+          'name':     _nameCtrl.text.trim(),
+          'f-name':   _fNameCtrl.text.trim(),
+          'email':    _emailCtrl.text.trim(),
+          'role':     _roleCtrl.text.trim(),
+          'location': _locationValue,
           'CNIC': _cnicCtrl.text.trim(),
           'salary': int.parse(_salaryCtrl.text.trim()),
           'allowances': _allowancesCtrl.text.trim().isNotEmpty
@@ -669,7 +754,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
           'status': _statusActive,
           // Only update avatar_url when a new image was picked; otherwise keep
           // the old URL untouched (don't overwrite with null).
-          'avatar_url': ?imageUrl,
+          if (imageUrl != null) 'avatar_url': imageUrl,
         };
 
         // Use the original DB id to identify the row, in case initials changed.
@@ -690,11 +775,12 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
         //  INSERT new record
         // ----------------------------------------------------------------
         final Map<String, dynamic> record = {
-          'id': _generatedId,
-          'name': _nameCtrl.text.trim(),
-          'f-name': _fNameCtrl.text.trim(),
-          'email': _emailCtrl.text.trim(),
-          'role': _roleCtrl.text.trim(),
+          'id':       _generatedId,
+          'name':     _nameCtrl.text.trim(),
+          'f-name':   _fNameCtrl.text.trim(),
+          'email':    _emailCtrl.text.trim(),
+          'role':     _roleCtrl.text.trim(),
+          'location': _locationValue,
           'CNIC': _cnicCtrl.text.trim(),
           'salary': int.parse(_salaryCtrl.text.trim()),
           'allowances': _allowancesCtrl.text.trim().isNotEmpty
@@ -703,7 +789,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
           'joining-date': formattedDate,
           'status': _statusActive,
           'created_at': DateTime.now().toUtc().toIso8601String(),
-          'avatar_url': ?imageUrl,
+          if (imageUrl != null) 'avatar_url': imageUrl,
         };
 
         await Insert('Employee', record);
@@ -788,7 +874,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
                               : "New Employee ID",
                           fontsize: 12),
                       headline(
-                        text: "#$_generatedId",
+                        text: _generatedId,
                         fontsize: widget.isMobile ? 16 : 20,
                       ),
                     ],
@@ -827,11 +913,12 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
                   ),
                   _buildInputField(
                     "Role",
-                    "Founder, CEO",
+                    "e.g. Founder, CEO",
                     controller: _roleCtrl,
                     icon: Icons.work_outline,
                     width: widget.isMobile ? null : 350,
                   ),
+                  _buildLocationDropdown(width: widget.isMobile ? null : 350),
                   _buildInputField(
                     "CNIC",
                     "35202-XXXXXXX-X",
@@ -872,7 +959,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
-                      child: paragraph(text: "Cancel", fontsize: 14),
+                      child: Text("Cancel", style: TextStyle(fontSize: 14, color:  Colors.grey.shade300)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1040,6 +1127,56 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
     );
   }
 
+  Widget _buildLocationDropdown({double? width}) {
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          paragraph(
+              text: "Location", fontsize: 14, textAlign: TextAlign.start),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2F3A),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _locationValue,
+                dropdownColor: const Color(0xFF2C2F3A),
+                icon:
+                const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'Remote',
+                    child: Text('Remote',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                  DropdownMenuItem(
+                    value: 'On-site',
+                    child: Text('On-site',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Hybrid',
+                    child: Text('Hybrid',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _locationValue = val);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSaveButton() {
     return Clickable(
       onTap: () => _isSaving ? () {} : _save(),
@@ -1061,9 +1198,9 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
             color: Colors.white,
           ),
         )
-            : headline(
-            text: _isEditMode ? "Save Changes" : "Register Employee",
-            fontsize: 14),
+            : Text(
+             _isEditMode ? "Save Changes" : "Register Employee",
+            style: TextStyle(fontSize: 14, color: Colors.white)),
       ),
     );
   }
@@ -1078,7 +1215,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
           color: const Color(0xFF2C2F3A),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: paragraph(text: text, fontsize: 14, color: Colors.white),
+        child: Text(text, style: TextStyle(fontSize: 14, color: Colors.white)),
       ),
     );
   }
@@ -1091,7 +1228,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
         children: [
           const Icon(Icons.arrow_back_ios, size: 14, color: Colors.white70),
           const SizedBox(width: 4),
-          paragraph(text: "Back", fontsize: 16),
+          Text("Back", style: TextStyle(fontSize:  16, color: Colors.white)),
         ],
       ),
     );

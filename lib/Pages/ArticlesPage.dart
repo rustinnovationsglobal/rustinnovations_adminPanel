@@ -106,7 +106,8 @@ class _ArticlesPageState extends State<ArticlesPage> {
   void _removeKeyword(String keyword) => setState(() => _keywords.remove(keyword));
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     if (bytes.lengthInBytes > 200 * 1024) { _showSnack('Image too large (>200KB)'); return; }
@@ -121,9 +122,10 @@ class _ArticlesPageState extends State<ArticlesPage> {
     final title = _titleController.text.trim();
     final slug = _slugController.text.trim();
     final author = _authorController.text.trim();
+    final altText = _altTextController.text.trim();
     final rawContent = await _controller.getText();
 
-    if (title.isEmpty || slug.isEmpty || author.isEmpty || _imageBytes == null) {
+    if (title.isEmpty || slug.isEmpty || author.isEmpty || altText.isEmpty || _imageBytes == null) {
       _showSnack('All fields are required.');
       return;
     }
@@ -140,7 +142,7 @@ class _ArticlesPageState extends State<ArticlesPage> {
         'slug': slug,
         'created_at': DateTime.now().toIso8601String(),
         'content': rawContent,
-        'image_alt': _altTextController.text.trim(),
+        'image_alt': altText,
         'author': author,
         'keyword': _keywords,
       });
@@ -150,12 +152,22 @@ class _ArticlesPageState extends State<ArticlesPage> {
     } catch (e) {
       _showSnack('Upload failed: $e');
     } finally {
-      setState(() => _isPosting = false);
+      if (mounted) setState(() => _isPosting = false);
     }
   }
 
   void _showSnack(String message, {bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: success ? Colors.green : Colors.red));
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _slugController.dispose();
+    _authorController.dispose();
+    _altTextController.dispose();
+    _keywordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -170,7 +182,7 @@ class _ArticlesPageState extends State<ArticlesPage> {
           Expanded(
             child: Column(
               children: [
-                Topbar(onProfileTap: () {}, title: "Articles Record"),
+                Topbar( title: "Articles Record"),
                 Expanded(
                   child: SingleChildScrollView(
                     child: Padding(
@@ -256,6 +268,8 @@ class _ArticlesPageState extends State<ArticlesPage> {
         _buildInputField("Author", "Writer Name", controller: _authorController),
         const SizedBox(height: 24),
         _buildKeywordsInputField(),
+        const SizedBox(height: 24),
+        _buildInputField("Alt Text", "Image description for SEO", controller: _altTextController),
         const SizedBox(height: 32),
         Align(alignment: Alignment.centerRight, child: _isPosting ? const CircularProgressIndicator() : _buildPrimaryButton(text: "Post Blog", onPressed: _postBlog)),
       ],
