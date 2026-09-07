@@ -4,21 +4,21 @@ class Clickable extends StatelessWidget {
   final VoidCallback onTap;
   final Widget child;
   final double borderRadius;
-  final MouseCursor cursor; // Add this
+  final MouseCursor cursor;
 
   const Clickable({
     super.key,
     required this.onTap,
     required this.child,
     this.borderRadius = 8,
-    this.cursor = SystemMouseCursors.click, // Default to hand cursor
+    this.cursor = SystemMouseCursors.click,
   });
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: cursor, // Apply the cursor here
-      child: GestureDetector(
+      cursor: cursor,
+      child: InkWell(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(

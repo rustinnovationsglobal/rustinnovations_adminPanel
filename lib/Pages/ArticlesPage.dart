@@ -11,6 +11,7 @@ import 'package:rustinnovations_adminpanel/Widgets/Clickable.dart';
 import 'package:rustinnovations_adminpanel/Widgets/RichEditor.dart';
 import 'package:go_router/go_router.dart';
 import 'package:html_editor_enhanced/html_editor.dart';
+import 'dart:html' as html;
 
 class ArticlesPage extends StatefulWidget {
   const ArticlesPage({super.key});
@@ -47,17 +48,29 @@ class _ArticlesPageState extends State<ArticlesPage> {
   @override
   void initState() {
     super.initState();
+    html.document.title = "Articles - Rust Innovations Admin Panel";
     _fetchBlogs();
   }
+
+  String _generateMetaHtml(String content, {int maxLength = 160}) {
+  final cleanText = _stripHtml(content);
+  final truncated = cleanText.length > maxLength 
+      ? '${cleanText.substring(0, maxLength)}...' 
+      : cleanText;
+  return '<p>$truncated</p>';
+}
 
   Future<void> _fetchBlogs() async {
     setState(() => _isFetching = true);
     try {
       final response = await _supabase
           .from('Blogs')
-          .select('id, title, content, created_at, author, featured_image, keyword')
+          .select(
+            'id, title, content, created_at, author, featured_image, keyword, meta_html',
+          )
           .order('created_at', ascending: false);
-      if (mounted) setState(() => _blogs = List<Map<String, dynamic>>.from(response));
+      if (mounted)
+        setState(() => _blogs = List<Map<String, dynamic>>.from(response));
     } catch (e) {
       _showSnack('Failed to load blogs.');
     } finally {
@@ -66,8 +79,15 @@ class _ArticlesPageState extends State<ArticlesPage> {
   }
 
   String _generateSlug(String title) {
-    return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s-]'), '').trim().replaceAll(RegExp(r'\s+'), '-');
+    return title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '-');
   }
+
+
+
 
   void _onMenuItemTap(int index) {
     if (index == 0) context.go('/dashboard');
@@ -91,6 +111,8 @@ class _ArticlesPageState extends State<ArticlesPage> {
     _keywordController.clear();
     _keywords.clear();
     _imageBytes = null;
+    _imageFileName = null;
+    _imageMimeType = null;
   }
 
   void _addKeyword(String value) {
@@ -103,20 +125,29 @@ class _ArticlesPageState extends State<ArticlesPage> {
     }
   }
 
-  void _removeKeyword(String keyword) => setState(() => _keywords.remove(keyword));
+  void _removeKeyword(String keyword) =>
+      setState(() => _keywords.remove(keyword));
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
-    if (bytes.lengthInBytes > 200 * 1024) { _showSnack('Image too large (>200KB)'); return; }
+    if (bytes.lengthInBytes > 200 * 1024) {
+      _showSnack('Image too large (>200KB)');
+      return;
+    }
     setState(() {
       _imageBytes = bytes;
       _imageFileName = picked.name;
       _imageMimeType = 'image/${picked.name.split('.').last}';
     });
   }
+
+String _stripHtml(String html) {
+  final RegExp exp = RegExp(r'<[^>]*>', multiLine: true);
+  return html.replaceAll(exp, '').trim();
+}
 
   Future<void> _postBlog() async {
     final title = _titleController.text.trim();
@@ -125,23 +156,49 @@ class _ArticlesPageState extends State<ArticlesPage> {
     final altText = _altTextController.text.trim();
     final rawContent = await _controller.getText();
 
-    if (title.isEmpty || slug.isEmpty || author.isEmpty || altText.isEmpty || _imageBytes == null) {
+    if (title.isEmpty ||
+        slug.isEmpty ||
+        author.isEmpty ||
+        altText.isEmpty ||
+        _imageBytes == null) {
       _showSnack('All fields are required.');
       return;
     }
 
     setState(() => _isPosting = true);
     try {
-      final imagePath = 'bob/$slug-${DateTime.now().millisecondsSinceEpoch}.${_imageFileName!.split('.').last}';
-      await _supabase.storage.from(_bucketName).uploadBinary(imagePath, _imageBytes!, fileOptions: FileOptions(contentType: _imageMimeType));
-      final imageUrl = _supabase.storage.from(_bucketName).getPublicUrl(imagePath);
+      // Upload image
+      final imagePath =
+          'bob/$slug-${DateTime.now().millisecondsSinceEpoch}.${_imageFileName!.split('.').last}';
+      await _supabase.storage
+          .from(_bucketName)
+          .uploadBinary(
+            imagePath,
+            _imageBytes!,
+            fileOptions: FileOptions(contentType: _imageMimeType),
+          );
+      final imageUrl = _supabase.storage
+          .from(_bucketName)
+          .getPublicUrl(imagePath);
 
+      // 🆕 Generate meta_html from content
+      final metaHtml = _generateMetaHtml(rawContent);
+
+      // 🆕 Generate excerpt if needed
+      final excerpt = _stripHtml(rawContent);
+      final shortExcerpt = excerpt.length > 150 
+          ? '${excerpt.substring(0, 150)}...' 
+          : excerpt;
+
+      // ✅ FIXED: Now includes meta_html
       await _supabase.from('Blogs').insert({
         'featured_image': imageUrl,
         'title': title,
         'slug': slug,
         'created_at': DateTime.now().toIso8601String(),
         'content': rawContent,
+        'meta_html': metaHtml, // ✅ Added this field
+        'excerpt': shortExcerpt, // ✅ Added for better SEO
         'image_alt': altText,
         'author': author,
         'keyword': _keywords,
@@ -151,13 +208,19 @@ class _ArticlesPageState extends State<ArticlesPage> {
       _toggleAdding();
     } catch (e) {
       _showSnack('Upload failed: $e');
+      print('Error posting blog: $e');
     } finally {
       if (mounted) setState(() => _isPosting = false);
     }
   }
 
   void _showSnack(String message, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: success ? Colors.green : Colors.red));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
   }
 
   @override
@@ -178,16 +241,23 @@ class _ArticlesPageState extends State<ArticlesPage> {
       backgroundColor: MyColors.BACKGROUND_COLOR,
       body: Row(
         children: [
-          Sidebar(selectedIndex: 1, onMenuItemTap: _onMenuItemTap, isMobile: isMobile, isTablet: screenWidth < 1200),
+          Sidebar(
+            selectedIndex: 1,
+            onMenuItemTap: _onMenuItemTap,
+            isMobile: isMobile,
+            isTablet: screenWidth < 1200,
+          ),
           Expanded(
             child: Column(
               children: [
-                Topbar( title: "Articles Record"),
+                Topbar(title: "Articles Record"),
                 Expanded(
                   child: SingleChildScrollView(
                     child: Padding(
                       padding: EdgeInsets.all(isMobile ? 16 : 32),
-                      child: _isAdding ? _buildAddArticleForm(isMobile) : _buildArticleSection(isMobile),
+                      child: _isAdding
+                          ? _buildAddArticleForm(isMobile)
+                          : _buildArticleSection(isMobile),
                     ),
                   ),
                 ),
@@ -206,19 +276,29 @@ class _ArticlesPageState extends State<ArticlesPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            headline(text: "All Blogs", fontsize: 22, textAlign: TextAlign.start),
-            _buildRegisterButton(text: "Register New Blog", onPressed: _toggleAdding),
+            headline(
+              text: "All Blogs",
+              fontsize: 22,
+              textAlign: TextAlign.start,
+            ),
+            _buildRegisterButton(
+              text: "Register New Blog",
+              onPressed: _toggleAdding,
+            ),
           ],
         ),
         const SizedBox(height: 24),
-        if (_isFetching) const Center(child: CircularProgressIndicator())
-        else ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _blogs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemBuilder: (context, index) => _buildBlogCard(_blogs[index], isMobile),
-        ),
+        if (_isFetching)
+          const Center(child: CircularProgressIndicator())
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _blogs.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) =>
+                _buildBlogCard(_blogs[index], isMobile),
+          ),
       ],
     );
   }
@@ -228,23 +308,62 @@ class _ArticlesPageState extends State<ArticlesPage> {
       onTap: () => context.push('/blog-details', extra: blog),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: const Color(0xFF1A1C23), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1C23),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
         child: Row(
           children: [
             if (blog['featured_image'] != null)
-              ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(blog['featured_image'], width: 120, height: 80, fit: BoxFit.cover)),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  blog['featured_image'],
+                  width: 120,
+                  height: 80,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 120,
+                    height: 80,
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+                ),
+              ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  headline(text: blog['title'] ?? 'No Title', fontsize: 16, textAlign: TextAlign.start),
+                  headline(
+                    text: blog['title'] ?? 'No Title',
+                    fontsize: 16,
+                    textAlign: TextAlign.start,
+                  ),
                   const SizedBox(height: 4),
-                  paragraph(text: "By ${blog['author']} • ${blog['created_at'].toString().substring(0, 10)}", fontsize: 12),
+                  paragraph(
+                    text:
+                        "By ${blog['author']} • ${blog['created_at'].toString().substring(0, 10)}",
+                    fontsize: 12,
+                  ),
+                  if (blog['meta_html'] != null) ...[
+                    const SizedBox(height: 4),
+                    paragraph(
+                      text: _stripHtml(blog['meta_html']),
+                      fontsize: 11,
+                      color: Colors.white54,
+                      textAlign: TextAlign.start,
+                    ),
+                  ],
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white24),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: Colors.white24,
+            ),
           ],
         ),
       ),
@@ -259,19 +378,37 @@ class _ArticlesPageState extends State<ArticlesPage> {
         const SizedBox(height: 24),
         _buildImageUploader(),
         const SizedBox(height: 24),
-        _buildInputField("Title", "Enter Blog Title", controller: _titleController, onChanged: (v) => _slugController.text = _generateSlug(v)),
+        _buildInputField(
+          "Title",
+          "Enter Blog Title",
+          controller: _titleController,
+          onChanged: (v) => _slugController.text = _generateSlug(v),
+        ),
         const SizedBox(height: 24),
         _buildInputField("Slug", "URL address", controller: _slugController),
         const SizedBox(height: 24),
         _buildEditor(),
         const SizedBox(height: 24),
-        _buildInputField("Author", "Writer Name", controller: _authorController),
+        _buildInputField(
+          "Author",
+          "Writer Name",
+          controller: _authorController,
+        ),
         const SizedBox(height: 24),
         _buildKeywordsInputField(),
         const SizedBox(height: 24),
-        _buildInputField("Alt Text", "Image description for SEO", controller: _altTextController),
+        _buildInputField(
+          "Alt Text",
+          "Image description for SEO",
+          controller: _altTextController,
+        ),
         const SizedBox(height: 32),
-        Align(alignment: Alignment.centerRight, child: _isPosting ? const CircularProgressIndicator() : _buildPrimaryButton(text: "Post Blog", onPressed: _postBlog)),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _isPosting
+              ? const CircularProgressIndicator()
+              : _buildPrimaryButton(text: "Post Blog", onPressed: _postBlog),
+        ),
       ],
     );
   }
@@ -282,19 +419,60 @@ class _ArticlesPageState extends State<ArticlesPage> {
       child: Container(
         width: double.infinity,
         height: 160,
-        decoration: BoxDecoration(color: const Color(0xFF1A1C23), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
-        child: _imageBytes != null ? Image.memory(_imageBytes!, fit: BoxFit.cover) : const Icon(Icons.cloud_upload_outlined, size: 40, color: Colors.white24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1C23),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: _imageBytes != null
+            ? Image.memory(_imageBytes!, fit: BoxFit.cover)
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.cloud_upload_outlined,
+                    size: 40,
+                    color: Colors.white24,
+                  ),
+                  const SizedBox(height: 8),
+                  paragraph(
+                    text: "Tap to upload image (max 200KB)",
+                    fontsize: 12,
+                    color: Colors.white54,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildInputField(String label, String hint, {required TextEditingController controller, Function(String)? onChanged}) {
+  Widget _buildInputField(
+    String label,
+    String hint, {
+    required TextEditingController controller,
+    Function(String)? onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         paragraph(text: label, fontsize: 14, textAlign: TextAlign.start),
         const SizedBox(height: 8),
-        TextField(controller: controller, onChanged: onChanged, style: const TextStyle(color: Colors.white), decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: Colors.white24), fillColor: const Color(0xFF2C2F3A), filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none))),
+        TextField(
+          controller: controller,
+          onChanged: onChanged,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white24),
+            fillColor: const Color(0xFF2C2F3A),
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -303,24 +481,104 @@ class _ArticlesPageState extends State<ArticlesPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        paragraph(text: "Keywords (Press Enter)", fontsize: 14, textAlign: TextAlign.start),
+        paragraph(
+          text: "Keywords (Press Enter)",
+          fontsize: 14,
+          textAlign: TextAlign.start,
+        ),
         const SizedBox(height: 8),
-        TextField(controller: _keywordController, onSubmitted: _addKeyword, style: const TextStyle(color: Colors.white), decoration: InputDecoration(hintText: "Add tag...", hintStyle: const TextStyle(color: Colors.white24), fillColor: const Color(0xFF2C2F3A), filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none))),
+        TextField(
+          controller: _keywordController,
+          onSubmitted: _addKeyword,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: "Add tag...",
+            hintStyle: const TextStyle(color: Colors.white24),
+            fillColor: const Color(0xFF2C2F3A),
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, children: _keywords.map((k) => Chip(label: Text(k, style: const TextStyle(fontSize: 10)), onDeleted: () => _removeKeyword(k))).toList()),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _keywords
+              .map(
+                (k) => Chip(
+                  label: Text(k, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                  onDeleted: () => _removeKeyword(k),
+                  backgroundColor: Colors.grey[800],
+                  deleteIconColor: Colors.white54,
+                ),
+              )
+              .toList(),
+        ),
       ],
     );
   }
 
-  Widget _buildRegisterButton({required String text, required VoidCallback onPressed}) {
-    return Clickable(onTap: onPressed, child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12), decoration: BoxDecoration(color: MyColors.BUTTON_COLOR, borderRadius: BorderRadius.circular(8)), child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))));
+  Widget _buildRegisterButton({
+    required String text,
+    required VoidCallback onPressed,
+  }) {
+    return Clickable(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: MyColors.BUTTON_COLOR,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildPrimaryButton({required String text, required VoidCallback onPressed}) {
-    return Clickable(onTap: onPressed, child: Container(padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16), decoration: BoxDecoration(color: MyColors.BUTTON_COLOR, borderRadius: BorderRadius.circular(8)), child: headline(text: text, fontsize: 14)));
+  Widget _buildPrimaryButton({
+    required String text,
+    required VoidCallback onPressed,
+  }) {
+    return Clickable(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        decoration: BoxDecoration(
+          color: MyColors.BUTTON_COLOR,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: headline(text: text, fontsize: 14),
+      ),
+    );
   }
 
-  Widget _buildEditor() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [paragraph(text: "Content", fontsize: 14, textAlign: TextAlign.start), const SizedBox(height: 8), RichEditor(controller: _controller, height: 400)]);
+  Widget _buildEditor() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      paragraph(text: "Content", fontsize: 14, textAlign: TextAlign.start),
+      const SizedBox(height: 8),
+      RichEditor(controller: _controller, height: 400),
+    ],
+  );
 
-  Widget _buildBackButton() => Clickable(onTap: _toggleAdding, child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.arrow_back_ios, size: 14, color: Colors.white70), const SizedBox(width: 4), paragraph(text: "Back to List", fontsize: 16)]));
+  Widget _buildBackButton() => Clickable(
+    onTap: _toggleAdding,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.arrow_back_ios, size: 14, color: Colors.white70),
+        const SizedBox(width: 4),
+        paragraph(text: "Back to List", fontsize: 16),
+      ],
+    ),
+  );
 }

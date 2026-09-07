@@ -6,6 +6,7 @@ import 'package:rustinnovations_adminpanel/Widgets/Topbar.dart';
 import 'package:rustinnovations_adminpanel/Widgets/myText.dart';
 import 'package:rustinnovations_adminpanel/Widgets/Clickable.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:html' as html;
 
 class BlogDetailsPage extends StatefulWidget {
   final Map<String, dynamic> blog;
@@ -30,6 +31,12 @@ class _BlogDetailsPageState extends State<BlogDetailsPage> {
     } catch (_) {
       return isoDate;
     }
+  }
+
+  @override
+  void initState() {
+    html.document.title = "View Article - Rust Innovations Admin Panel";
+    super.initState();
   }
 
   @override

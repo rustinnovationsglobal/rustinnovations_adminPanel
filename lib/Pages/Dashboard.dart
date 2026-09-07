@@ -39,6 +39,7 @@ class _DashboardState extends State<Dashboard> {
   void initState() {
     super.initState();
     _employeeFuture = Read('Employee');
+        html.document.title = "Employee - Rust Innovations Admin Panel";
   }
 
   void _refreshData() {
@@ -269,13 +270,13 @@ class _DashboardState extends State<Dashboard> {
                           ),
                           const SizedBox(width: 8),
                           Clickable(
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: id));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Employee ID copied')),
-                              );
-                            },
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: id));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Employee ID copied')),
+                                );
+                              },
                               child: Icon(Icons.copy, color: Colors.white, size: 13,)
                           )],
                       ),
@@ -542,33 +543,33 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
         _joiningDate = DateTime.tryParse(rawDate) ?? DateTime.now();
       }
     } else {
-      // ---- Register mode: generate a fresh sequential RP-XXXX ID ----
-      _generatedId = 'RP-0001'; // placeholder until async fetch completes
+      // ---- Register mode: generate a fresh sequential RPXXXX ID ----
+      _generatedId = 'RP0001'; // placeholder until async fetch completes
       _fetchNextId();
     }
   }
 
   /// Fetches all existing employee IDs from Supabase and derives the next
-  /// sequential RP-XXXX id.
+  /// sequential RPXXXX id.
   Future<void> _fetchNextId() async {
     try {
       final supabase = Supabase.instance.client;
       final response = await supabase
           .from('Employee')
           .select('id')
-          .like('id', 'RP-%');
+          .like('id', 'RP%');
 
       final List rows = response as List;
       int maxNum = 0;
       for (final row in rows) {
         final rawId = row['id'] as String? ?? '';
-        if (rawId.startsWith('RP-')) {
-          final numPart = int.tryParse(rawId.substring(3)) ?? 0;
+        if (rawId.startsWith('RP')) {
+          final numPart = int.tryParse(rawId.substring(2)) ?? 0;
           if (numPart > maxNum) maxNum = numPart;
         }
       }
       final nextNum = maxNum + 1;
-      final nextId = 'RP-${nextNum.toString().padLeft(4, '0')}';
+      final nextId = 'RP${nextNum.toString().padLeft(4, '0')}';
       if (mounted) setState(() => _generatedId = nextId);
     } catch (_) {
       // Keep the placeholder if fetch fails
@@ -591,7 +592,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
   //  ID helpers
   // ------------------------------------------------------------------
 
-  // _refreshId removed — ID is now a fixed sequential RP-XXXX number assigned
+  // _refreshId removed — ID is now a fixed sequential RPXXXX number assigned
   // automatically and never changed after creation.
 
   // ------------------------------------------------------------------
@@ -1199,7 +1200,7 @@ class _AddEmployeeFormState extends State<_AddEmployeeForm> {
           ),
         )
             : Text(
-             _isEditMode ? "Save Changes" : "Register Employee",
+            _isEditMode ? "Save Changes" : "Register Employee",
             style: TextStyle(fontSize: 14, color: Colors.white)),
       ),
     );

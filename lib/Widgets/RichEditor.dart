@@ -48,6 +48,7 @@ class _RichEditorState extends State<RichEditor> {
             darkMode: true,
             spellCheck: true,
             inputType: HtmlInputType.text,
+
           ),
           htmlToolbarOptions: HtmlToolbarOptions(
             toolbarPosition: ToolbarPosition.aboveEditor,
